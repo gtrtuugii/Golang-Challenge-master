@@ -1,0 +1,31 @@
+services:
+
+  database:
+    build:
+      context: .
+      dockerfile: ./docker/database.Dockerfile
+    container_name: example_exercise_database
+    ports:
+      - "5400:5432"
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=exercise
+      - POSTGRES_USER=super_secure_username
+      - POSTGRES_PASSWORD=super_secure_password
+
+  golang:
+    build:
+      context: .
+      dockerfile: ./docker/golang.Dockerfile
+    container_name: example_exercise_golang_tools
+    volumes:
+      - .:/app
+    working_dir: /app
+    ports: 
+      - "8080:8080"
+    env_file:
+      - .env
+
+volumes:
+  database_data:
