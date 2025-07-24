@@ -48,17 +48,17 @@ Hopefully most of the project structure is fairly self-explanatory:
 
 # Tasks 
 
-* Task 1: Ensure everything works. Start the database, then start the webserver. If things don't work, make them work. Call the `GET /users` endpoint to make sure the pre-populated data comes back as expected.
+* Task 1: Ensure everything works. Start the database, then start the webserver. If things don't work, make them work. Call the `GET /users` endpoint to make sure the pre-populated data comes back as expected.✅✅✅
 
-* Task 2: Create an endpoint to create a user.
+* Task 2: Create an endpoint to create a user. ✅✅✅
 
-* Task 3: Given the default database data, the endpoint for fetching users sometimes returns duplicates. Fix that.
+* Task 3: Given the default database data, the endpoint for fetching users sometimes returns duplicates. Fix that. ✅
 
 * Task 4: Create an endpoint to create a user message, and then modify `GET /users` to return a message count. 
 
 * Task 5: Create a PATCH request for modifying users. Should allow the removal of user nicknames (setting nickname=NULL in the database). 
 
-* Task 6: Write some simple unit tests to cover fetching user data and creating users.
+* Task 6: Write some simple unit tests to cover fetching user data and creating users. ✅
 
 * Task 7 (Optional): Implement some level of JWT Authentication.
 

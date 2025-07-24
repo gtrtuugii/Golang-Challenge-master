@@ -15,12 +15,20 @@ type GetUsersQueryRow struct {
 	PermissionBitfield string      `db:"permission_bitfield"`
 }
 
+type CreateUserParams struct {
+	Username string  `db:"username"`
+	Email    string  `db:"email"`
+	UserType string  `db:"user_type"`
+	Nickname *string // Using pointer for optional field
+}
+
 func GetUsers() ([]GetUsersQueryRow, error) {
 	conn := GetConnection()
 	defer conn.Close(context.TODO())
 
+	// Duplicates prevented by adding DISTINCT on the query below:
 	rows, err := conn.Query(context.TODO(), `
-		SELECT
+		SELECT DISTINCT
 			public.users.id, 
 			public.users.username, 
 			public.users.email,
@@ -58,4 +66,45 @@ func GetUsers() ([]GetUsersQueryRow, error) {
 	}
 
 	return users, err
+}
+
+func CreateUser(params CreateUserParams) (GetUsersQueryRow, error) {
+	conn := GetConnection()
+	defer conn.Close(context.TODO())
+
+	var nickname pgtype.Text
+	// TODO: Nickname validation
+	// if params.Nickname != nil && *params.Nickname != "" {
+	// 	nickname = pgtype.Text{String: *params.Nickname, Valid: true}
+	// } else {
+	// 	nickname = pgtype.Text{Valid: false}
+	// }
+
+	var user GetUsersQueryRow
+	err := conn.QueryRow(context.TODO(), `
+		INSERT INTO public.users (username, email, user_type, nickname) 
+		VALUES ($1, $2, $3, $4) 
+		RETURNING id, username, email, user_type, nickname
+	`, params.Username, params.Email, params.UserType, nickname).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.UserType,
+		&user.Nickname,
+	)
+	if err != nil {
+		return GetUsersQueryRow{}, err
+	}
+
+	// Get permission bitfield for the response
+	err = conn.QueryRow(context.TODO(), `
+		SELECT permission_bitfield::text 
+		FROM user_types 
+		WHERE type_key = $1
+	`, user.UserType).Scan(&user.PermissionBitfield)
+	if err != nil {
+		return GetUsersQueryRow{}, err
+	}
+
+	return user, nil
 }

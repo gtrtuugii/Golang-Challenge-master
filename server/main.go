@@ -12,7 +12,8 @@ func main() {
 
 	r := gin.Default()
 
+	// endpoints
 	r.GET("/users", handlers.GetUsers)
-
+	r.POST("/users", handlers.CreateUser)
 	r.Run()
 }
