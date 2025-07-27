@@ -3,6 +3,7 @@ package handlers
 import (
 	"main/queries"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,11 +25,19 @@ type CreateUserRequest struct {
 }
 
 type UserResponse struct {
-	ID       int     `json:"id"`
-	Username string  `json:"username"`
-	Email    string  `json:"email"`
-	UserType string  `json:"userType"`
-	Nickname *string `json:"nickname,omitempty"`
+	ID           int     `json:"id"`
+	Username     string  `json:"username"`
+	Email        string  `json:"email"`
+	UserType     string  `json:"userType"`
+	Nickname     *string `json:"nickname,omitempty"`
+	MessageCount int32   `json:"message_count"`
+}
+
+type UpdateUserParams struct {
+	Username *string `json:"username,omitempty"`
+	Email    *string `json:"email,omitempty"`
+	UserType *string `json:"user_type,omitempty"`
+	Nickname *string `json:"nickname"` // Note: no omitempty to allow explicit null
 }
 
 func GetUsers(c *gin.Context) {
@@ -51,11 +60,12 @@ func GetUsers(c *gin.Context) {
 		}
 
 		users = append(users, UserResponse{
-			ID:       row.ID,
-			Username: row.Username,
-			Email:    row.Email,
-			UserType: row.UserType,
-			Nickname: nickname,
+			ID:           row.ID,
+			Username:     row.Username,
+			Email:        row.Email,
+			UserType:     row.UserType,
+			Nickname:     nickname,
+			MessageCount: row.MessageCount,
 		})
 	}
 
@@ -94,10 +104,11 @@ func CreateUser(c *gin.Context) {
 	}
 
 	params := queries.CreateUserParams{
-		Username: req.Username,
-		Email:    req.Email,
-		UserType: req.UserType,
-		Nickname: req.Nickname,
+		Username:     req.Username,
+		Email:        req.Email,
+		UserType:     req.UserType,
+		Nickname:     req.Nickname,
+		MessageCount: 0, // New user starts with 0 messages
 	}
 
 	user, err := queries.CreateUser(params)
@@ -123,4 +134,81 @@ func CreateUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, response)
+}
+
+// Handler function
+func UpdateUser(c *gin.Context) {
+	userIDStr := c.Param("user_id") // Use c.Param, not c.Params.Get
+	userID, err := strconv.ParseInt(userIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid user ID",
+		})
+		return
+	}
+
+	var req UpdateUserParams
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	// Validate user_type if provided
+	if req.UserType != nil {
+		validTypes := []string{"UTYPE_USER", "UTYPE_ADMIN", "UTYPE_MODERATOR"}
+		valid := false
+		for _, validType := range validTypes {
+			if *req.UserType == validType {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Invalid user type. Must be one of: UTYPE_USER, UTYPE_ADMIN, UTYPE_MODERATOR",
+			})
+			return
+		}
+	}
+
+	// Map handler's UpdateUserParams to queries.UpdateUserParams
+	updateParams := queries.UpdateUserParams{
+		Username: req.Username,
+		Email:    req.Email,
+		UserType: req.UserType,
+		Nickname: req.Nickname,
+	}
+
+	user, err := queries.UpdateUser(int32(userID), updateParams)
+	if err != nil {
+		if err.Error() == "user not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Failed to update user: " + err.Error(),
+		})
+		return
+	}
+
+	// Convert nickname from pgtype.Text to *string
+	var nickname *string = nil
+	if user.Nickname.Valid {
+		nickname = &user.Nickname.String
+	}
+
+	response := UserResponse{
+		ID:           user.ID,
+		Username:     user.Username,
+		Email:        user.Email,
+		UserType:     user.UserType,
+		Nickname:     nickname,
+		MessageCount: user.MessageCount,
+	}
+
+	c.JSON(http.StatusOK, response)
 }

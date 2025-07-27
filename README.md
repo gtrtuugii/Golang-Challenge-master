@@ -33,7 +33,7 @@ make startdb
 
 This should build and start a postgres database on port `5400` or as defined in `docker-compose.yml`.
 
-If you wan't to make changes to the database schema and/or data, you can also do so by changing `database/schema.sql` and running `make dbrebuild`.
+If you wan't to make changes to the database schema and/or data, you can also do so by changing `database/schema.sql` and running `make rebuilddb`.
 
 If you choose to use VS Code, you should be able to launch the backend directly via VS Code "Run and Debug" tab (assuming you have Golang installed). Otherwise, you can run `make run` which launches the server via a golang docker container.
 
