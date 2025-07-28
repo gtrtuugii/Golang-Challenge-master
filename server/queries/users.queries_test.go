@@ -12,8 +12,7 @@ import (
 
 type MockUserService struct {
 	mock.Mock
-	users  []GetUsersQueryRow
-	nextID int
+	users []GetUsersQueryRow
 }
 
 func TestGetUsersQueryRow_Structure(t *testing.T) {
