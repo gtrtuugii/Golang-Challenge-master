@@ -75,7 +75,12 @@ POSTGRES_USER=super_secure_username
 POSTGRES_PASSWORD=super_secure_password
 ```
 
-
-
-
-
+# Testing
+Make sure you are in the `/server` directory.
+```
+cd server
+```
+**Then run:**
+```
+go test -v ./...
+```
