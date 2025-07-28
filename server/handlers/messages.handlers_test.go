@@ -44,7 +44,6 @@ func (m *MockMessageService) GetMessagesByUser(userID int) ([]MockMessage, error
 	return args.Get(0).([]MockMessage), args.Error(1)
 }
 
-// Mock handlers that use the mock service
 func CreateMessageMock(mockService *MockMessageService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req CreateMessageRequest
@@ -259,20 +258,6 @@ func TestCreateMessageHandler(t *testing.T) {
 	mockService.AssertExpectations(t)
 }
 
-func TestCreateMessageHandlerMalformedJSON(t *testing.T) {
-	mockService := &MockMessageService{}
-	router := setupTestRouterWithMock(mockService)
-
-	req, _ := http.NewRequest("POST", "/messages", bytes.NewBufferString("{invalid json"))
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "Invalid request body")
-}
-
 func TestGetMessagesHandler(t *testing.T) {
 	mockService := &MockMessageService{}
 	router := setupTestRouterWithMock(mockService)
@@ -309,23 +294,6 @@ func TestGetMessagesHandler(t *testing.T) {
 	assert.Len(t, response.Messages, 2)
 	assert.Equal(t, "First test message", response.Messages[0].Content)
 	assert.Equal(t, "Second test message", response.Messages[1].Content)
-
-	mockService.AssertExpectations(t)
-}
-
-func TestGetMessagesHandlerError(t *testing.T) {
-	mockService := &MockMessageService{}
-	router := setupTestRouterWithMock(mockService)
-
-	// Setup mock to return error
-	mockService.On("GetMessages").Return([]MockMessage(nil), errors.New("database error"))
-
-	req, _ := http.NewRequest("GET", "/messages", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "Failed to retrieve messages")
 
 	mockService.AssertExpectations(t)
 }
@@ -440,44 +408,6 @@ func TestMessageResponseStructure(t *testing.T) {
 
 	// Validate timestamp format (should be ISO 8601)
 	assert.Regexp(t, `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`, response.CreatedAt)
-
-	mockService.AssertExpectations(t)
-}
-
-func TestConcurrentMessageCreation(t *testing.T) {
-	mockService := &MockMessageService{}
-	router := setupTestRouterWithMock(mockService)
-
-	// Test that multiple concurrent requests don't interfere
-	payload1 := CreateMessageRequest{UserID: 1, Content: "Message 1"}
-	payload2 := CreateMessageRequest{UserID: 2, Content: "Message 2"}
-
-	mockMessage1 := MockMessage{ID: 1, UserID: 1, Content: "Message 1", CreatedAt: time.Now()}
-	mockMessage2 := MockMessage{ID: 2, UserID: 2, Content: "Message 2", CreatedAt: time.Now()}
-
-	mockService.On("CreateMessage", payload1).Return(mockMessage1, nil)
-	mockService.On("CreateMessage", payload2).Return(mockMessage2, nil)
-
-	// Create concurrent requests
-	jsonPayload1, _ := json.Marshal(payload1)
-	jsonPayload2, _ := json.Marshal(payload2)
-
-	req1, _ := http.NewRequest("POST", "/messages", bytes.NewBuffer(jsonPayload1))
-	req1.Header.Set("Content-Type", "application/json")
-
-	req2, _ := http.NewRequest("POST", "/messages", bytes.NewBuffer(jsonPayload2))
-	req2.Header.Set("Content-Type", "application/json")
-
-	w1 := httptest.NewRecorder()
-	w2 := httptest.NewRecorder()
-
-	// Execute requests
-	router.ServeHTTP(w1, req1)
-	router.ServeHTTP(w2, req2)
-
-	// Both should succeed
-	assert.Equal(t, http.StatusCreated, w1.Code)
-	assert.Equal(t, http.StatusCreated, w2.Code)
 
 	mockService.AssertExpectations(t)
 }

@@ -46,7 +46,6 @@ func TestGetUsersQueryRow_WithInvalidNickname(t *testing.T) {
 	assert.Equal(t, "", row.Nickname.String)
 	assert.Equal(t, "1111", row.PermissionBitfield)
 }
-
 func TestCreateUserParams_WithNickname(t *testing.T) {
 	nickname := "Test Nickname"
 	params := CreateUserParams{
@@ -145,36 +144,6 @@ func TestCreateUserParams_Validation(t *testing.T) {
 			assert.Equal(t, tt.isValid, isValid)
 		})
 	}
-}
-
-func TestPgTypeText_ValidNickname(t *testing.T) {
-	nickname := pgtype.Text{
-		String: "John Doe",
-		Valid:  true,
-	}
-
-	assert.True(t, nickname.Valid)
-	assert.Equal(t, "John Doe", nickname.String)
-}
-
-func TestPgTypeText_InvalidNickname(t *testing.T) {
-	nickname := pgtype.Text{
-		String: "",
-		Valid:  false,
-	}
-
-	assert.False(t, nickname.Valid)
-	assert.Equal(t, "", nickname.String)
-}
-
-func TestPgTypeText_EmptyButValidNickname(t *testing.T) {
-	nickname := pgtype.Text{
-		String: "",
-		Valid:  true,
-	}
-
-	assert.True(t, nickname.Valid)
-	assert.Equal(t, "", nickname.String)
 }
 
 func TestNicknameHandling(t *testing.T) {

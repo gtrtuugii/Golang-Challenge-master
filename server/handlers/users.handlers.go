@@ -5,12 +5,15 @@ import (
 	"net/http"
 	"strconv"
 
+	"slices"
+
 	"github.com/gin-gonic/gin"
 )
 
 type UserQueries interface {
 	GetUsers() ([]queries.GetUsersQueryRow, error)
 	CreateUser(params queries.CreateUserParams) (queries.GetUsersQueryRow, error)
+	UpdateUser(params queries.UpdateUserParams) (queries.GetUsersQueryRow, error)
 }
 
 type GetUsersResponse struct {
@@ -136,7 +139,6 @@ func CreateUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
-// Handler function
 func UpdateUser(c *gin.Context) {
 	userIDStr := c.Param("user_id") // Use c.Param, not c.Params.Get
 	userID, err := strconv.ParseInt(userIDStr, 10, 32)
@@ -158,13 +160,7 @@ func UpdateUser(c *gin.Context) {
 	// Validate user_type if provided
 	if req.UserType != nil {
 		validTypes := []string{"UTYPE_USER", "UTYPE_ADMIN", "UTYPE_MODERATOR"}
-		valid := false
-		for _, validType := range validTypes {
-			if *req.UserType == validType {
-				valid = true
-				break
-			}
-		}
+		valid := slices.Contains(validTypes, *req.UserType)
 		if !valid {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Invalid user type. Must be one of: UTYPE_USER, UTYPE_ADMIN, UTYPE_MODERATOR",

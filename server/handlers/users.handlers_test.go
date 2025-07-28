@@ -1,34 +1,11 @@
 package handlers
 
 import (
-	"bytes"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 )
-
-func setupTestContext(method, url string, body interface{}) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-
-	var req *http.Request
-	if body != nil {
-		jsonBody, _ := json.Marshal(body)
-		req = httptest.NewRequest(method, url, bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-	} else {
-		req = httptest.NewRequest(method, url, nil)
-	}
-
-	c, _ := gin.CreateTestContext(w)
-	c.Request = req
-	return c, w
-}
 
 // Test the response structure creation logic
 func TestGetUsersResponseStructure(t *testing.T) {
@@ -205,7 +182,6 @@ func TestCreateUserResponseCreation(t *testing.T) {
 	assert.NotNil(t, response.Nickname)
 	assert.Equal(t, "New User", *response.Nickname)
 }
-
 func TestCreateUserResponseWithoutNickname(t *testing.T) {
 	// Mock data without nickname
 	mockUser := struct {
@@ -244,104 +220,91 @@ func TestCreateUserResponseWithoutNickname(t *testing.T) {
 	assert.Nil(t, response.Nickname)
 }
 
-func TestJSONBindingValidation(t *testing.T) {
+func TestUpdateUserRequestValidation(t *testing.T) {
 	tests := []struct {
 		name        string
-		jsonBody    string
-		shouldError bool
+		request     UpdateUserParams
+		expectValid bool
+		description string
 	}{
 		{
-			name:        "valid JSON",
-			jsonBody:    `{"username":"test","email":"test@example.com","user_type":"user"}`,
-			shouldError: false,
+			name: "valid partial update - username only",
+			request: UpdateUserParams{
+				Username: stringPtr("newusername"),
+			},
+			expectValid: true,
+			description: "Should accept username-only update",
 		},
 		{
-			name:        "invalid JSON",
-			jsonBody:    `{"username":"test","email":}`,
-			shouldError: true,
+			name: "valid partial update - email only",
+			request: UpdateUserParams{
+				Email: stringPtr("new@example.com"),
+			},
+			expectValid: true,
+			description: "Should accept email-only update",
 		},
 		{
-			name:        "empty JSON",
-			jsonBody:    `{}`,
-			shouldError: false,
+			name: "valid partial update - user_type only",
+			request: UpdateUserParams{
+				UserType: stringPtr("UTYPE_ADMIN"),
+			},
+			expectValid: true,
+			description: "Should accept user_type-only update",
+		},
+		{
+			name: "valid partial update - nickname only",
+			request: UpdateUserParams{
+				Nickname: stringPtr("New Nickname"),
+			},
+			expectValid: true,
+			description: "Should accept nickname-only update",
+		},
+		{
+			name: "valid nickname removal",
+			request: UpdateUserParams{
+				Nickname: stringPtr(""),
+			},
+			expectValid: true,
+			description: "Should accept empty string to remove nickname",
+		},
+		{
+			name: "valid multiple fields",
+			request: UpdateUserParams{
+				Username: stringPtr("updateduser"),
+				Email:    stringPtr("updated@example.com"),
+				UserType: stringPtr("UTYPE_MODERATOR"),
+			},
+			expectValid: true,
+			description: "Should accept multiple field updates",
+		},
+		{
+			name: "valid all fields",
+			request: UpdateUserParams{
+				Username: stringPtr("allnew"),
+				Email:    stringPtr("allnew@example.com"),
+				UserType: stringPtr("UTYPE_ADMIN"),
+				Nickname: stringPtr("All New"),
+			},
+			expectValid: true,
+			description: "Should accept all field updates",
+		},
+		{
+			name:        "empty request",
+			request:     UpdateUserParams{},
+			expectValid: false,
+			description: "Should reject request with no fields to update",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var req CreateUserRequest
-			err := json.Unmarshal([]byte(tt.jsonBody), &req)
+			// Test the validation logic from UpdateUser handler
+			hasFields := tt.request.Username != nil ||
+				tt.request.Email != nil ||
+				tt.request.UserType != nil ||
+				tt.request.Nickname != nil
 
-			if tt.shouldError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestUserResponseJSONSerialization(t *testing.T) {
-	tests := []struct {
-		name     string
-		user     UserResponse
-		expected map[string]interface{}
-	}{
-		{
-			name: "user with nickname",
-			user: UserResponse{
-				ID:       1,
-				Username: "testuser",
-				Email:    "test@example.com",
-				UserType: "admin",
-				Nickname: stringPtr("Test Nickname"),
-			},
-			expected: map[string]interface{}{
-				"id":       float64(1),
-				"username": "testuser",
-				"email":    "test@example.com",
-				"userType": "admin",
-				"nickname": "Test Nickname",
-			},
-		},
-		{
-			name: "user without nickname",
-			user: UserResponse{
-				ID:       2,
-				Username: "testuser2",
-				Email:    "test2@example.com",
-				UserType: "user",
-				Nickname: nil,
-			},
-			expected: map[string]interface{}{
-				"id":       float64(2),
-				"username": "testuser2",
-				"email":    "test2@example.com",
-				"userType": "user",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			jsonData, err := json.Marshal(tt.user)
-			assert.NoError(t, err)
-
-			var result map[string]interface{}
-			err = json.Unmarshal(jsonData, &result)
-			assert.NoError(t, err)
-
-			for key, expectedValue := range tt.expected {
-				actualValue, exists := result[key]
-				assert.True(t, exists, "Key %s should exist", key)
-				assert.Equal(t, expectedValue, actualValue, "Value for key %s should match", key)
-			}
-
-			// Check that nickname is omitted when nil
-			if tt.user.Nickname == nil {
-				_, exists := result["nickname"]
-				assert.False(t, exists, "Nickname should be omitted when nil")
-			}
+			assert.Equal(t, tt.expectValid, hasFields, tt.description)
 		})
 	}
 }

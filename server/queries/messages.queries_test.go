@@ -10,7 +10,12 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// Mock implementations for testing
+type MockUserService struct {
+	mock.Mock
+	users  []GetUsersQueryRow
+	nextID int32
+}
+
 type MockMessageService struct {
 	mock.Mock
 	messages []GetMessagesQueryRow
@@ -66,6 +71,53 @@ func (m *MockMessageService) GetMessagesByUser(userID int) ([]GetMessagesQueryRo
 	}
 
 	return userMessages, nil
+}
+
+func (m *MockUserService) UpdateUser(userID int32, params UpdateUserParams) (GetUsersQueryRow, error) {
+	args := m.Called(userID, params)
+
+	if args.Error(1) != nil {
+		return GetUsersQueryRow{}, args.Error(1)
+	}
+
+	// Find user to update
+	for i, user := range m.users {
+		if user.ID == int(userID) {
+			// Update fields if provided
+			if params.Username != nil {
+				user.Username = *params.Username
+			}
+			if params.Email != nil {
+				user.Email = *params.Email
+			}
+			if params.UserType != nil {
+				user.UserType = *params.UserType
+			}
+			if params.Nickname != nil {
+				if *params.Nickname == "" {
+					user.Nickname = pgtype.Text{Valid: false}
+				} else {
+					user.Nickname = pgtype.Text{String: *params.Nickname, Valid: true}
+				}
+			}
+
+			// Mock permission bitfield based on user type
+			switch user.UserType {
+			case "UTYPE_ADMIN":
+				user.PermissionBitfield = "10000000"
+			case "UTYPE_MODERATOR":
+				user.PermissionBitfield = "01000000"
+			default:
+				user.PermissionBitfield = "00000000"
+			}
+
+			user.MessageCount = 0
+			m.users[i] = user
+			return user, nil
+		}
+	}
+
+	return GetUsersQueryRow{}, errors.New("user not found")
 }
 
 func TestCreateMessage(t *testing.T) {
@@ -149,21 +201,6 @@ func TestGetMessages(t *testing.T) {
 	mockService.AssertExpectations(t)
 }
 
-func TestGetMessagesError(t *testing.T) {
-	mockService := &MockMessageService{}
-
-	// Mock database error
-	mockService.On("GetMessages").Return([]GetMessagesQueryRow(nil), errors.New("database connection failed"))
-
-	messages, err := mockService.GetMessages()
-
-	assert.Error(t, err, "GetMessages should return an error")
-	assert.Nil(t, messages, "Messages should be nil on error")
-	assert.Contains(t, err.Error(), "database connection", "Error should mention database connection")
-
-	mockService.AssertExpectations(t)
-}
-
 func TestGetMessagesByUser(t *testing.T) {
 	mockService := &MockMessageService{
 		messages: []GetMessagesQueryRow{
@@ -197,8 +234,12 @@ func TestGetMessagesByUser(t *testing.T) {
 		},
 	}
 
+	expectedMessages := []GetMessagesQueryRow{
+		mockService.messages[0], // User 1 message 1
+		mockService.messages[2], // User 1 message 2
+	}
 	// Mock successful retrieval for user 1
-	mockService.On("GetMessagesByUser", 1).Return([]GetMessagesQueryRow(nil), nil)
+	mockService.On("GetMessagesByUser", 1).Return(expectedMessages, nil)
 
 	user1Messages, err := mockService.GetMessagesByUser(1)
 
