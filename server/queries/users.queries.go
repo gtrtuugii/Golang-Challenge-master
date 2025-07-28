@@ -8,6 +8,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// GetUsers retrieves all users from the database with their associated permissions and message counts.
+// Returns:
+//   - []GetUsersQueryRow: Slice of user records with permissions and message counts.
+//   - error: Database error if query fails.
 func GetUsers() ([]GetUsersQueryRow, error) {
 	conn := GetConnection()
 	defer conn.Close(context.TODO())
@@ -52,6 +56,13 @@ func GetUsers() ([]GetUsersQueryRow, error) {
 	return users, nil
 }
 
+// CreateUser inserts a new user into the database and returns the created record.
+// Params:
+//   - params: User details (username, email, type, optional nickname).
+//
+// Returns:
+//   - GetUsersQueryRow: The newly created user with permissions.
+//   - error: Database error if insertion fails.
 func CreateUser(params CreateUserParams) (GetUsersQueryRow, error) {
 	conn := GetConnection()
 	defer conn.Close(context.TODO())
@@ -93,6 +104,14 @@ func CreateUser(params CreateUserParams) (GetUsersQueryRow, error) {
 	return user, nil
 }
 
+// UpdateUser modifies an existing user's fields (username, email, type, or nickname).
+// Params:
+//   - userID: ID of the user to update.
+//   - params: Fields to update (nil fields are ignored).
+//
+// Returns:
+//   - GetUsersQueryRow: Updated user record with permissions.
+//   - error: Database error or "no fields to update" if params are empty.
 func UpdateUser(userID int, params UpdateUserParams) (GetUsersQueryRow, error) {
 	conn := GetConnection()
 	defer conn.Close(context.TODO())

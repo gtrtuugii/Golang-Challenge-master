@@ -9,6 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetUsers handles GET /users requests.
+// Response:
+//   - 200: JSON list of all users.
+//   - 400: Error if database query fails.
 func GetUsers(c *gin.Context) {
 	userRows, err := queries.GetUsers()
 	if err != nil {
@@ -35,6 +39,11 @@ func GetUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, GetUsersResponse{Users: users})
 }
 
+// CreateUser handles POST /users requests to create a new user.
+// Validates required fields (username, email, user_type).
+// Response:
+//   - 201: JSON of the created user.
+//   - 400: Error if validation or database insertion fails.
 func CreateUser(c *gin.Context) {
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -85,6 +94,15 @@ func CreateUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
+// UpdateUser handles PATCH /users/:user_id requests.
+// Validates:
+//   - user_id as integer.
+//   - user_type (if provided) must be a valid role.
+//
+// Response:
+//   - 200: JSON of the updated user.
+//   - 400: Error if input validation fails.
+//   - 404: Error if user is not found.
 func UpdateUser(c *gin.Context) {
 	userIDStr := c.Param("user_id")
 	userID, err := strconv.Atoi(userIDStr)
