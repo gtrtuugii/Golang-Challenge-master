@@ -8,37 +8,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type GetUsersQueryRow struct {
-	ID                 int         `db:"id"`
-	Username           string      `db:"username"`
-	Email              string      `db:"email"`
-	UserType           string      `db:"user_type"`
-	Nickname           pgtype.Text `db:"nickname"`
-	PermissionBitfield string      `db:"permission_bitfield"`
-	MessageCount       int32       `db:"message_count"`
-}
-
-type CreateUserParams struct {
-	Username     string  `db:"username"`
-	Email        string  `db:"email"`
-	UserType     string  `db:"user_type"`
-	Nickname     *string // Using pointer for optional field
-	MessageCount int32   `db:"message_count"`
-}
-
-// UpdateUserParams struct for PATCH operations
-type UpdateUserParams struct {
-	Username *string `json:"username,omitempty"`
-	Email    *string `json:"email,omitempty"`
-	UserType *string `json:"user_type,omitempty"`
-	Nickname *string `json:"nickname"` // Note: no omitempty to allow explicit null
-}
-
 func GetUsers() ([]GetUsersQueryRow, error) {
 	conn := GetConnection()
 	defer conn.Close(context.TODO())
 
-	// Duplicates prevented by adding DISTINCT on the query below:
 	rows, err := conn.Query(context.TODO(), `
 		SELECT DISTINCT
 			u.id, 
@@ -54,14 +27,12 @@ func GetUsers() ([]GetUsersQueryRow, error) {
 		GROUP BY u.id, u.username, u.email, u.user_type, u.nickname, ut.permission_bitfield
 		ORDER BY u.id
 	`)
-
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
 
-	var users []GetUsersQueryRow = []GetUsersQueryRow{}
+	var users []GetUsersQueryRow
 	for rows.Next() {
 		var user GetUsersQueryRow
 		if err := rows.Scan(
@@ -78,7 +49,7 @@ func GetUsers() ([]GetUsersQueryRow, error) {
 		users = append(users, user)
 	}
 
-	return users, err
+	return users, nil
 }
 
 func CreateUser(params CreateUserParams) (GetUsersQueryRow, error) {
@@ -86,12 +57,11 @@ func CreateUser(params CreateUserParams) (GetUsersQueryRow, error) {
 	defer conn.Close(context.TODO())
 
 	var nickname pgtype.Text
-	// TODO: Nickname validation
-	// if params.Nickname != nil && *params.Nickname != "" {
-	// 	nickname = pgtype.Text{String: *params.Nickname, Valid: true}
-	// } else {
-	// 	nickname = pgtype.Text{Valid: false}
-	// }
+	if params.Nickname != nil && *params.Nickname != "" {
+		nickname = pgtype.Text{String: *params.Nickname, Valid: true}
+	} else {
+		nickname = pgtype.Text{Valid: false}
+	}
 
 	var user GetUsersQueryRow
 	err := conn.QueryRow(context.TODO(), `
@@ -110,27 +80,23 @@ func CreateUser(params CreateUserParams) (GetUsersQueryRow, error) {
 		return GetUsersQueryRow{}, err
 	}
 
-	// New user has no messages
-	user.MessageCount = 0
-
-	// Get permission bitfield for the response
 	err = conn.QueryRow(context.TODO(), `
 		SELECT permission_bitfield::text 
-		FROM user_types 
+		FROM public.user_types 
 		WHERE type_key = $1
 	`, user.UserType).Scan(&user.PermissionBitfield)
 	if err != nil {
 		return GetUsersQueryRow{}, err
 	}
 
+	user.MessageCount = 0
 	return user, nil
 }
 
-func UpdateUser(userID int32, params UpdateUserParams) (GetUsersQueryRow, error) {
+func UpdateUser(userID int, params UpdateUserParams) (GetUsersQueryRow, error) {
 	conn := GetConnection()
 	defer conn.Close(context.TODO())
 
-	// Build dynamic query based on provided fields
 	setParts := []string{}
 	args := []interface{}{}
 	argCount := 1
@@ -140,26 +106,22 @@ func UpdateUser(userID int32, params UpdateUserParams) (GetUsersQueryRow, error)
 		args = append(args, *params.Username)
 		argCount++
 	}
-
 	if params.Email != nil {
 		setParts = append(setParts, fmt.Sprintf("email = $%d", argCount))
 		args = append(args, *params.Email)
 		argCount++
 	}
-
 	if params.UserType != nil {
 		setParts = append(setParts, fmt.Sprintf("user_type = $%d", argCount))
 		args = append(args, *params.UserType)
 		argCount++
 	}
-
-	// Handle nickname - can be set to null explicitly
 	if params.Nickname != nil {
 		var nickname pgtype.Text
 		if *params.Nickname != "" {
 			nickname = pgtype.Text{String: *params.Nickname, Valid: true}
 		} else {
-			nickname = pgtype.Text{Valid: false} // NULL
+			nickname = pgtype.Text{Valid: false}
 		}
 		setParts = append(setParts, fmt.Sprintf("nickname = $%d", argCount))
 		args = append(args, nickname)
@@ -170,9 +132,7 @@ func UpdateUser(userID int32, params UpdateUserParams) (GetUsersQueryRow, error)
 		return GetUsersQueryRow{}, fmt.Errorf("no fields to update")
 	}
 
-	// Add userID as the last parameter
 	args = append(args, userID)
-
 	query := fmt.Sprintf(`
 		UPDATE public.users 
 		SET %s 
@@ -192,18 +152,15 @@ func UpdateUser(userID int32, params UpdateUserParams) (GetUsersQueryRow, error)
 		return GetUsersQueryRow{}, err
 	}
 
-	// Get permission bitfield
 	err = conn.QueryRow(context.TODO(), `
 		SELECT permission_bitfield::text 
-		FROM user_types 
+		FROM public.user_types 
 		WHERE type_key = $1
 	`, user.UserType).Scan(&user.PermissionBitfield)
 	if err != nil {
 		return GetUsersQueryRow{}, fmt.Errorf("failed to get permission bitfield: %w", err)
 	}
 
-	// You might want to get actual message count from database
-	user.MessageCount = 0 // Or query from messages table
-
+	user.MessageCount = 0 // Optional: can query actual count
 	return user, nil
 }

@@ -44,6 +44,18 @@ func (m *MockMessageService) GetMessagesByUser(userID int) ([]MockMessage, error
 	return args.Get(0).([]MockMessage), args.Error(1)
 }
 
+func setupTestRouterWithMock(mockService *MockMessageService) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	// Add routes with mock handlers
+	router.GET("/messages", GetMessagesMock(mockService))
+	router.POST("/messages", CreateMessageMock(mockService))
+	router.GET("/users/:user_id/messages", GetMessagesByUserMock(mockService))
+
+	return router
+}
+
 func CreateMessageMock(mockService *MockMessageService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req CreateMessageRequest
@@ -163,18 +175,6 @@ func GetMessagesByUserMock(mockService *MockMessageService) gin.HandlerFunc {
 			Messages: responseMessages,
 		})
 	}
-}
-
-func setupTestRouterWithMock(mockService *MockMessageService) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-
-	// Add routes with mock handlers
-	router.GET("/messages", GetMessagesMock(mockService))
-	router.POST("/messages", CreateMessageMock(mockService))
-	router.GET("/users/:user_id/messages", GetMessagesByUserMock(mockService))
-
-	return router
 }
 
 func TestCreateMessageHandler(t *testing.T) {
@@ -334,15 +334,6 @@ func TestGetMessagesByUserHandler(t *testing.T) {
 			shouldContain:  "Invalid user ID",
 			setupMock:      false,
 		},
-		// { TODO: Make the following test pass
-		// 	name:           "Non-existent user",
-		// 	userID:         "99999",
-		// 	mockMessages:   []MockMessage{},
-		// 	mockError:      nil,
-		// 	expectedStatus: http.StatusOK,
-		// 	shouldContain:  `"messages":null`,
-		// 	setupMock:      true,
-		// },
 	}
 
 	for _, tt := range tests {

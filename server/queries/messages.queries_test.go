@@ -10,12 +10,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type MockUserService struct {
-	mock.Mock
-	users  []GetUsersQueryRow
-	nextID int32
-}
-
 type MockMessageService struct {
 	mock.Mock
 	messages []GetMessagesQueryRow
@@ -71,53 +65,6 @@ func (m *MockMessageService) GetMessagesByUser(userID int) ([]GetMessagesQueryRo
 	}
 
 	return userMessages, nil
-}
-
-func (m *MockUserService) UpdateUser(userID int32, params UpdateUserParams) (GetUsersQueryRow, error) {
-	args := m.Called(userID, params)
-
-	if args.Error(1) != nil {
-		return GetUsersQueryRow{}, args.Error(1)
-	}
-
-	// Find user to update
-	for i, user := range m.users {
-		if user.ID == int(userID) {
-			// Update fields if provided
-			if params.Username != nil {
-				user.Username = *params.Username
-			}
-			if params.Email != nil {
-				user.Email = *params.Email
-			}
-			if params.UserType != nil {
-				user.UserType = *params.UserType
-			}
-			if params.Nickname != nil {
-				if *params.Nickname == "" {
-					user.Nickname = pgtype.Text{Valid: false}
-				} else {
-					user.Nickname = pgtype.Text{String: *params.Nickname, Valid: true}
-				}
-			}
-
-			// Mock permission bitfield based on user type
-			switch user.UserType {
-			case "UTYPE_ADMIN":
-				user.PermissionBitfield = "10000000"
-			case "UTYPE_MODERATOR":
-				user.PermissionBitfield = "01000000"
-			default:
-				user.PermissionBitfield = "00000000"
-			}
-
-			user.MessageCount = 0
-			m.users[i] = user
-			return user, nil
-		}
-	}
-
-	return GetUsersQueryRow{}, errors.New("user not found")
 }
 
 func TestCreateMessage(t *testing.T) {

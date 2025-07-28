@@ -9,24 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Request/Response types
-type CreateMessageRequest struct {
-	UserID  int    `json:"user_id" binding:"required"`
-	Content string `json:"content" binding:"required"`
-}
-
-type MessageResponse struct {
-	ID        int    `json:"id"`
-	UserID    int    `json:"user_id"`
-	Content   string `json:"content"`
-	CreatedAt string `json:"created_at"`
-}
-
-type GetMessagesResponse struct {
-	Messages []MessageResponse `json:"messages"`
-}
-
-// GetMessages handler - retrieves all messages
 func GetMessages(c *gin.Context) {
 	messageRows, err := queries.GetMessages()
 	if err != nil {
@@ -61,7 +43,7 @@ func GetMessagesByUser(c *gin.Context) {
 		return
 	}
 
-	messageRows, err := queries.GetMessagesByUser(int32(userID))
+	messageRows, err := queries.GetMessagesByUser(userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Failed to retrieve messages: " + err.Error(),
@@ -84,7 +66,6 @@ func GetMessagesByUser(c *gin.Context) {
 	})
 }
 
-// CreateMessage handler - creates a new message
 func CreateMessage(c *gin.Context) {
 	var req CreateMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

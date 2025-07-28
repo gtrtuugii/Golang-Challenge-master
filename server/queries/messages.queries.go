@@ -2,23 +2,7 @@ package queries
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
-
-// GetMessagesQueryRow represents a row in the messages query result
-// It includes fields for the message ID, user ID, content, and creation timestamp.
-type GetMessagesQueryRow struct {
-	ID        int                `db:"id"`
-	UserID    int                `db:"user_id"`
-	Content   string             `db:"content"`
-	CreatedAt pgtype.Timestamptz `db:"created_at"`
-}
-
-type CreateMessageParams struct {
-	UserID  int    `db:"user_id"`
-	Content string `db:"content"`
-}
 
 // GetMessages retrieves all messages from the database.
 // It returns a slice of GetMessagesQueryRow and an error if any occurs.
@@ -76,7 +60,7 @@ func CreateMessage(params CreateMessageParams) (GetMessagesQueryRow, error) {
 	return message, nil
 }
 
-func GetMessagesByUser(userID int32) ([]GetMessagesQueryRow, error) {
+func GetMessagesByUser(userID int) ([]GetMessagesQueryRow, error) {
 	conn := GetConnection()
 	defer conn.Close(context.TODO())
 

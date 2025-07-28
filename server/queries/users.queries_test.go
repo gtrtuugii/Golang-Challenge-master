@@ -1,11 +1,20 @@
 package queries
 
 import (
+	"errors"
+	"main/utils"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
+
+type MockUserService struct {
+	mock.Mock
+	users  []GetUsersQueryRow
+	nextID int
+}
 
 func TestGetUsersQueryRow_Structure(t *testing.T) {
 	// Test creating and validating GetUsersQueryRow structure
@@ -88,7 +97,7 @@ func TestCreateUserParams_Validation(t *testing.T) {
 				Username: "validuser",
 				Email:    "valid@example.com",
 				UserType: "user",
-				Nickname: stringPtr("Valid User"),
+				Nickname: utils.StringPtr("Valid User"),
 			},
 			isValid: true,
 		},
@@ -155,12 +164,12 @@ func TestNicknameHandling(t *testing.T) {
 	}{
 		{
 			name:          "with nickname",
-			inputNickname: stringPtr("Test User"),
+			inputNickname: utils.StringPtr("Test User"),
 			expectedPgType: pgtype.Text{
 				String: "Test User",
 				Valid:  true,
 			},
-			expectedResponse: stringPtr("Test User"),
+			expectedResponse: utils.StringPtr("Test User"),
 		},
 		{
 			name:          "without nickname",
@@ -173,12 +182,12 @@ func TestNicknameHandling(t *testing.T) {
 		},
 		{
 			name:          "empty nickname",
-			inputNickname: stringPtr(""),
+			inputNickname: utils.StringPtr(""),
 			expectedPgType: pgtype.Text{
 				String: "",
 				Valid:  true,
 			},
-			expectedResponse: stringPtr(""),
+			expectedResponse: utils.StringPtr(""),
 		},
 	}
 
@@ -242,7 +251,49 @@ func TestUserTypesAndPermissions(t *testing.T) {
 	}
 }
 
-// Helper function for string pointers
-func stringPtr(s string) *string {
-	return &s
+func (m *MockUserService) UpdateUser(userID int, params UpdateUserParams) (GetUsersQueryRow, error) {
+	args := m.Called(userID, params)
+
+	if args.Error(1) != nil {
+		return GetUsersQueryRow{}, args.Error(1)
+	}
+
+	// Find user to update
+	for i, user := range m.users {
+		if user.ID == int(userID) {
+			// Update fields if provided
+			if params.Username != nil {
+				user.Username = *params.Username
+			}
+			if params.Email != nil {
+				user.Email = *params.Email
+			}
+			if params.UserType != nil {
+				user.UserType = *params.UserType
+			}
+			if params.Nickname != nil {
+				if *params.Nickname == "" {
+					user.Nickname = pgtype.Text{Valid: false}
+				} else {
+					user.Nickname = pgtype.Text{String: *params.Nickname, Valid: true}
+				}
+			}
+
+			// Mock permission bitfield based on user type
+			switch user.UserType {
+			case "UTYPE_ADMIN":
+				user.PermissionBitfield = "10000000"
+			case "UTYPE_MODERATOR":
+				user.PermissionBitfield = "01000000"
+			default:
+				user.PermissionBitfield = "00000000"
+			}
+
+			user.MessageCount = 0
+			m.users[i] = user
+			return user, nil
+		}
+	}
+
+	return GetUsersQueryRow{}, errors.New("user not found")
 }
